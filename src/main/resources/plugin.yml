@@ -1,0 +1,17 @@
+name: KeyAllZ
+version: '3.0.1'
+main: dev.infnox.keyAllZ.KeyAllZ
+api-version: '1.21'
+authors: [ Infnox ]
+folia-supported: true
+commands:
+  keyallz:
+    description: Main command to manage KeyAll timers
+    usage: /<command> <start|stop|loop|remind|list|reload>
+    permission: keyallz.admin
+    permission-message: "§cYou do not have permission to use KeyAllZ commands."
+
+permissions:
+  keyallz.use:
+    description: Allows the player to use KeyAllZ commands
+    default: op

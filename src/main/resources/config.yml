@@ -1,0 +1,67 @@
+# KeyAllZ Configuration
+# Define your KeyAll events here.
+# Each entry supports messages, sounds, commands, and reminders.
+
+keyalls:
+  example:
+    title: "<green>You received a KeyAll reward!"
+    actionbar: "<yellow>Enjoy your free key!"
+    chat: "<gray>[KeyAll] <aqua>Congrats %player%, you got a reward!"
+    sound: "minecraft:entity.player.levelup"
+    sound-volume: 1.0
+    sound-pitch: 1.0
+
+    # Commands executed as the player
+    player-commands:
+      - "warp crates"
+      - "say I just got a key from KeyAll!"
+
+    # Commands executed from console
+    console-commands:
+      - "give %player% minecraft:diamond 1"
+      - "crate key give %player% vote 1"
+
+    # Permission required (leave empty for none)
+    permission: "keyall.receive.example"
+
+    reminders:
+      enabled: true
+      interval: 600
+      message: "<yellow>Don't forget to claim your KeyAll! Time left: %remaining-time%"
+
+  votekey:
+    title: "<gold>Vote Party Reward!"
+    actionbar: "<green>You earned a Vote Key!"
+    chat: "<gray>[VoteParty] <aqua>%player% got a Vote Key!"
+    sound: "minecraft:entity.experience_orb.pickup"
+    sound-volume: 1.0
+    sound-pitch: 1.2
+
+    player-commands:
+      - "msg %player% Thanks for voting!"
+    console-commands:
+      - "crate key give %player% vote 1"
+    permission: ""
+
+    reminders:
+      enabled: false
+      interval: 0
+      message: ""
+
+  donorkey:
+    title: "<light_purple>Donor KeyAll!"
+    actionbar: "<yellow>You received a Donor Key!"
+    chat: "<gray>[KeyAll] <light_purple>%player% received a Donor Key!"
+    sound: "minecraft:ui.toast.challenge_complete"
+    sound-volume: 1.0
+    sound-pitch: 1.0
+
+    player-commands: []
+    console-commands:
+      - "crate key give %player% donor 1"
+    permission: "keyall.receive.donor"
+
+    reminders:
+      enabled: true
+      interval: 1200
+      message: "<light_purple>Donor KeyAll is available! Time left: %remaining-time%"
