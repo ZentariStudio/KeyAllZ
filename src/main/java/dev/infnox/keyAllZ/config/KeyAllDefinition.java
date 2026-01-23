@@ -70,21 +70,24 @@ public class KeyAllDefinition {
     public ReminderDefinition getReminder() { return reminder; }
 
     /**
-     * Inner class for reminder configuration.
+     * Inner class for reminder configuration
      */
     public static class ReminderDefinition {
         private final int interval;
-        private final String chat;
+        private final String message;
         private final String title;
         private final String actionbar;
         private final String sound;
         private final float soundVolume;
         private final float soundPitch;
+        private final boolean enabled;
 
-        public ReminderDefinition(int interval, String chat, String title, String actionbar,
+
+        public ReminderDefinition(boolean enabled, int interval, String message, String title, String actionbar,
                                   String sound, float soundVolume, float soundPitch) {
+            this.enabled = enabled;
             this.interval = interval;
-            this.chat = chat;
+            this.message = message;
             this.title = title;
             this.actionbar = actionbar;
             this.sound = sound;
@@ -94,8 +97,9 @@ public class KeyAllDefinition {
 
         public static ReminderDefinition fromConfig(ConfigurationSection sec) {
             return new ReminderDefinition(
+                    sec.getBoolean("enabled", true),
                     sec.getInt("interval", 10),
-                    sec.getString("chat", ""),
+                    sec.getString("message", ""),
                     sec.getString("title", ""),
                     sec.getString("actionbar", ""),
                     sec.getString("sound", ""),
@@ -105,11 +109,14 @@ public class KeyAllDefinition {
         }
 
         public int getInterval() { return interval; }
-        public String getChat() { return chat; }
+        public String getMessage() { return message; }
         public String getTitle() { return title; }
         public String getActionbar() { return actionbar; }
         public String getSound() { return sound; }
         public float getSoundVolume() { return soundVolume; }
         public float getSoundPitch() { return soundPitch; }
+        public boolean isEnabled() {
+            return enabled;
+        }
     }
 }

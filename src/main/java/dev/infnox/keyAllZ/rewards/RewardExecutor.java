@@ -24,7 +24,6 @@ public class RewardExecutor {
     private final Set<String> executed = ConcurrentHashMap.newKeySet(); // thread-safe
     private final MiniMessage mm = MiniMessage.miniMessage();
 
-    // Constants for tuning
     private static final Duration TITLE_FADE_IN = Duration.ofMillis(500);
     private static final Duration TITLE_STAY = Duration.ofSeconds(2);
     private static final Duration TITLE_FADE_OUT = Duration.ofMillis(500);
@@ -40,15 +39,15 @@ public class RewardExecutor {
 
         String key = def.getName() + ":" + player.getUniqueId();
         if (!executed.add(key)) {
-            logSkipped(player, def.getName(), key);
             return;
         }
 
-        // Player-specific rewards
+        // Player specific rewards
         foliaLib.getScheduler().runAtEntity(player, task -> runPlayerRewards(def, player));
     }
+
     public void executeGlobalCommands(KeyAllDefinition def) {
-        // Global console-only commands
+        // Global console only commands
         foliaLib.getScheduler().runNextTick(task -> runConsoleCommands(def));
 
         // Player batch console commands (PLAYER:)
@@ -60,9 +59,13 @@ public class RewardExecutor {
         if (reminder == null) return;
 
         foliaLib.getScheduler().runAtEntity(player, task -> {
-            sendComponent(player, parse(reminder.getTitle(), player, def, secondsRemaining), ComponentType.TITLE);
-            sendComponent(player, parse(reminder.getActionbar(), player, def, secondsRemaining), ComponentType.ACTIONBAR);
-            sendComponent(player, parse(reminder.getChat(), player, def, secondsRemaining), ComponentType.CHAT);
+            String title = parse(reminder.getTitle(), player, def, secondsRemaining);
+            String ab = parse(reminder.getActionbar(), player, def, secondsRemaining);
+            String chat = parse(reminder.getMessage(), player, def, secondsRemaining);
+
+            if (notEmpty(title)) sendComponent(player, title, ComponentType.TITLE);
+            if (notEmpty(ab)) sendComponent(player, ab, ComponentType.ACTIONBAR);
+            if (notEmpty(chat)) sendComponent(player, chat, ComponentType.CHAT);
 
             if (notEmpty(reminder.getSound())) {
                 playSound(player, reminder.getSound(), reminder.getSoundVolume(), reminder.getSoundPitch());
@@ -73,9 +76,8 @@ public class RewardExecutor {
     public void clearExecuted(String keyAllName) {
         int before = executed.size();
         executed.removeIf(k -> k.startsWith(keyAllName + ":"));
-        int after = executed.size();
-        plugin.getLogger().info("[KeyAllZ] Cleared executed keys for '" + keyAllName + "'. Before: " + before + ", After: " + after);
-        logExecutedSet(keyAllName);
+        // int after = executed.size();
+        // plugin.getLogger().info("[KeyAllZ] Cleared keys for '" + keyAllName + "'. Removed: " + (before - after));
     }
 
     public void stopSound(Player player, String soundKey) {
@@ -86,7 +88,6 @@ public class RewardExecutor {
         foliaLib.getScheduler().runAtEntity(player, task -> player.stopAllSounds());
     }
 
-
     private boolean hasPermission(KeyAllDefinition def, Player player) {
         String perm = def.getPermission();
         if (perm != null && !perm.isEmpty() && !player.hasPermission(perm)) {
@@ -96,9 +97,9 @@ public class RewardExecutor {
     }
 
     private void runPlayerRewards(KeyAllDefinition def, Player player) {
-        sendComponent(player, parse(def.getTitle(), player, def, 0), ComponentType.TITLE);
-        sendComponent(player, parse(def.getActionbar(), player, def, 0), ComponentType.ACTIONBAR);
-        sendComponent(player, parse(def.getChatMessage(), player, def, 0), ComponentType.CHAT);
+        if (notEmpty(def.getTitle())) sendComponent(player, parse(def.getTitle(), player, def, 0), ComponentType.TITLE);
+        if (notEmpty(def.getActionbar())) sendComponent(player, parse(def.getActionbar(), player, def, 0), ComponentType.ACTIONBAR);
+        if (notEmpty(def.getChatMessage())) sendComponent(player, parse(def.getChatMessage(), player, def, 0), ComponentType.CHAT);
 
         if (notEmpty(def.getSound())) {
             playSound(player, def.getSound(), def.getSoundVolume(), def.getSoundPitch());
@@ -119,7 +120,6 @@ public class RewardExecutor {
 
         for (String cmd : consoleCommands) {
             if (cmd.startsWith("PLAYER:")) {
-                // handled separately in runPlayerBatchConsoleCommands
                 continue;
             }
             if (notEmpty(cmd)) {
@@ -156,7 +156,7 @@ public class RewardExecutor {
                             String parsed = Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")
                                     ? PlaceholderAPI.setPlaceholders(target, replaced)
                                     : replaced;
-                            if (parsed != null && !parsed.isEmpty()) {
+                            if (!parsed.isEmpty()) {
                                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), parsed);
                             }
                         }
@@ -173,6 +173,7 @@ public class RewardExecutor {
     }
 
     private void sendComponent(Player player, String text, ComponentType type) {
+        // Double check empty before doing heavy deserialization
         if (!notEmpty(text)) return;
 
         switch (type) {
@@ -200,14 +201,6 @@ public class RewardExecutor {
         }
     }
 
-    private void logSkipped(Player player, String defName, String key) {
-        logExecutedSet(defName);
-    }
-
-    private void logExecutedSet(String keyAllName) {
-        long count = executed.stream().filter(k -> k.startsWith(keyAllName + ":")).count();
-    }
-
     private String formatRemainingTime(int seconds) {
         if (seconds <= 0) return "0s";
         int mins = seconds / 60;
@@ -218,6 +211,7 @@ public class RewardExecutor {
     private String parse(String text, Player player, KeyAllDefinition def, int secondsRemaining) {
         if (text == null || text.isEmpty()) return "";
 
+        // Standard placeholders
         text = text.replace("%player%", player.getName())
                 .replace("%keyall%", def.getName())
                 .replace("%time%", String.valueOf(secondsRemaining))

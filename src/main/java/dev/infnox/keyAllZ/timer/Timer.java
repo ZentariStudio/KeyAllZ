@@ -1,37 +1,39 @@
 package dev.infnox.keyAllZ.timer;
 
+import dev.infnox.keyAllZ.config.KeyAllDefinition;
 import dev.infnox.keyAllZ.rewards.RewardExecutor;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.logging.Level;
 
 public class Timer {
 
     private final JavaPlugin plugin;
-    private final String name;
-    private final int totalSeconds;
-
-    private int remainingSeconds;
-    private boolean running;
-    private boolean looping;
-    private ScheduledTask task;
-
-    private final List<Runnable> endActions = new ArrayList<>();
-    private final List<Runnable> tickActions = new ArrayList<>();
+    private final KeyAllDefinition definition;
     private final RewardExecutor rewardExecutor;
 
-    public Timer(JavaPlugin plugin, String name, int totalSeconds, RewardExecutor rewardExecutor) {
+    private int remainingSeconds;
+    private final int totalSeconds;
+    private boolean running;
+    private boolean looping;
+    private int reminderInterval = 10;
+
+    private ScheduledTask task;
+
+    public Timer(JavaPlugin plugin, KeyAllDefinition definition, int totalSeconds, int remainingSeconds, RewardExecutor rewardExecutor) {
         this.plugin = plugin;
-        this.name = name;
+        this.definition = definition;
         this.totalSeconds = totalSeconds;
-        this.remainingSeconds = totalSeconds;
+        this.remainingSeconds = remainingSeconds;
         this.rewardExecutor = rewardExecutor;
     }
 
+    public Timer(JavaPlugin plugin, KeyAllDefinition definition, int totalSeconds, RewardExecutor rewardExecutor) {
+        this(plugin, definition, totalSeconds, totalSeconds, rewardExecutor);
+    }
 
     public void setLooping(boolean looping) {
         this.looping = looping;
@@ -41,43 +43,51 @@ public class Timer {
         return looping;
     }
 
+    public void setReminderInterval(int reminderInterval) {
+        this.reminderInterval = reminderInterval;
+    }
+
+    public int getReminderInterval() {
+        return reminderInterval;
+    }
+
     public String getName() {
-        return name;
+        return definition.getName();
     }
 
-    public void addEndAction(Runnable action) {
-        endActions.add(action);
-    }
-
-    public void addTickAction(Runnable action) {
-        tickActions.add(action);
+    public KeyAllDefinition getDefinition() {
+        return definition;
     }
 
     /**
-     * Starts or restarts the timer.
+     * Starts the timer.
+     * @param resume If true, continues from current remainingSeconds. If false, resets to totalSeconds.
      */
-    public void start() {
+    public void start(boolean resume) {
         stop();
-        remainingSeconds = totalSeconds;
-        running = true;
 
-        // reset reward execution state for this timer
-        rewardExecutor.clearExecuted(name);
+        if (!resume) {
+            this.remainingSeconds = totalSeconds;
+            // Clear executed cache for this new run
+            rewardExecutor.clearExecuted(definition.getName());
+        }
 
-        task = Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, scheduledTask -> {
-            if (remainingSeconds <= 0) {
-                runEndActions();
-                if (looping) {
-                    remainingSeconds = totalSeconds;
-                    rewardExecutor.clearExecuted(name);
-                } else {
-                    stop();
-                }
+        this.running = true;
+
+        this.task = Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, scheduledTask -> {
+            if (!running) {
+                scheduledTask.cancel();
                 return;
             }
 
-            runTickActions();
+            if (remainingSeconds <= 0) {
+                handleEnd();
+                return;
+            }
+
+            handleTick();
             remainingSeconds--;
+
         }, 20L, 20L);
     }
 
@@ -89,35 +99,44 @@ public class Timer {
         running = false;
     }
 
-    /**
-     * Resets the timer without starting it.
-     */
-    public void reset() {
-        stop();
-        remainingSeconds = totalSeconds;
-    }
+    private void handleTick() {
+        KeyAllDefinition.ReminderDefinition reminder = definition.getReminder();
 
+        // No reminders configured or reminders disabled
+        if (reminder == null || !reminder.isEnabled()) {
+            return;
+        }
 
-    private void runEndActions() {
-        for (Runnable action : endActions) {
-            try {
-                action.run();
-            } catch (Exception e) {
-                plugin.getLogger().log(Level.SEVERE, "[" + name + "] End action error", e);
+        int interval = reminder.getInterval();
+
+        if (remainingSeconds <= 5 || (interval > 0 && remainingSeconds % interval == 0)) {
+            if (Bukkit.getOnlinePlayers().isEmpty()) return;
+
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                rewardExecutor.sendReminder(definition, player, remainingSeconds);
             }
         }
     }
 
-    private void runTickActions() {
-        for (Runnable action : tickActions) {
-            try {
-                action.run();
-            } catch (Exception e) {
-                plugin.getLogger().log(Level.WARNING, "[" + name + "] Tick action error", e);
+
+    private void handleEnd() {
+        // Execute Rewards
+        if (!Bukkit.getOnlinePlayers().isEmpty()) {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                rewardExecutor.execute(definition, player);
             }
         }
-    }
+        rewardExecutor.executeGlobalCommands(definition);
 
+        // Loop Logic
+        if (looping) {
+            remainingSeconds = totalSeconds;
+            rewardExecutor.clearExecuted(definition.getName());
+            // Timer keeps running after remainingSeconds reset
+        } else {
+            stop();
+        }
+    }
 
     public int getTimeRemaining() {
         return remainingSeconds;
@@ -125,14 +144,6 @@ public class Timer {
 
     public int getTotalTime() {
         return totalSeconds;
-    }
-
-    public int getElapsedTime() {
-        return totalSeconds - remainingSeconds;
-    }
-
-    public double getProgress() {
-        return 1.0 - ((double) remainingSeconds / (double) totalSeconds);
     }
 
     public boolean isRunning() {

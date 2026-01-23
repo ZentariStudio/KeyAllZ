@@ -11,23 +11,23 @@ keyalls:
     sound-volume: 1.0
     sound-pitch: 1.0
 
-    # Commands executed as the player
+    # Commands run as the player receiving the KeyAll
     player-commands:
       - "warp crates"
-      - "say I just got a key from KeyAll!"
+      - "say I just got a key!"
 
-    # Commands executed from console
+    # Commands run from console
+    # Prefix with PLAYER: to run it for each player individually
     console-commands:
-      - "give %player% minecraft:diamond 1"
-      - "crate key give %player% vote 1"
+      - "PLAYER: crate key give %player% test 1"
 
-    # Permission required (leave empty for none)
     permission: "keyall.receive.example"
 
     reminders:
       enabled: true
       interval: 600
       message: "<yellow>Don't forget to claim your KeyAll! Time left: %remaining-time%"
+
 
   votekey:
     title: "<gold>Vote Party Reward!"
@@ -38,9 +38,9 @@ keyalls:
     sound-pitch: 1.2
 
     player-commands:
-      - "msg %player% Thanks for voting!"
+      - "me Just got a voting key YAY!"
     console-commands:
-      - "crate key give %player% vote 1"
+      - "PLAYER: crate key give %player% vote 1"
     permission: ""
 
     reminders:
@@ -58,10 +58,10 @@ keyalls:
 
     player-commands: []
     console-commands:
-      - "crate key give %player% donor 1"
+      - "PLAYER: crate key give %player% donor 1"
     permission: "keyall.receive.donor"
 
     reminders:
-      enabled: true
+      enabled: false
       interval: 1200
       message: "<light_purple>Donor KeyAll is available! Time left: %remaining-time%"
