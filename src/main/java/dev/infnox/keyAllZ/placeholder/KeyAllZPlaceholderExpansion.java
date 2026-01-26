@@ -74,7 +74,7 @@ public class KeyAllZPlaceholderExpansion extends PlaceholderExpansion {
 
 
         if (timer == null || !timer.isRunning()) {
-            return null;
+            return "Inactive";
         }
 
         long totalSeconds = timer.getTimeRemaining();
