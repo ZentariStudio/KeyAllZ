@@ -6,6 +6,7 @@ import dev.infnox.keyAllZ.config.KeyAllDefinition;
 import dev.infnox.keyAllZ.placeholder.KeyAllZPlaceholderExpansion;
 import dev.infnox.keyAllZ.rewards.RewardExecutor;
 import dev.infnox.keyAllZ.timer.Timer;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
@@ -19,12 +20,14 @@ import java.util.Map;
 import java.util.logging.Level;
 
 public class KeyAllZ extends JavaPlugin {
+    private static final long TIMER_AUTOSAVE_PERIOD_TICKS = 20L * 30L;
 
     private RewardExecutor rewardExecutor;
     private ConfigManager configManager;
 
     private final Map<String, Timer> timers = new HashMap<>();
     private File timersFile;
+    private ScheduledTask autosaveTask;
 
     @Override
     public void onEnable() {
@@ -63,6 +66,7 @@ public class KeyAllZ extends JavaPlugin {
 
         // Load saved timers
         loadTimers();
+        startAutosaveTask();
 
          new Metrics(this, 21830);
 
@@ -71,7 +75,8 @@ public class KeyAllZ extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        saveTimers();
+        stopAutosaveTask();
+        saveTimers(true);
         getLogger().info("KeyAllZ disabled!");
     }
 
@@ -85,6 +90,10 @@ public class KeyAllZ extends JavaPlugin {
 
     public Map<String, Timer> getTimers() {
         return timers;
+    }
+
+    public void persistTimersNow() {
+        saveTimers(true);
     }
 
 
@@ -115,6 +124,9 @@ public class KeyAllZ extends JavaPlugin {
         YamlConfiguration data = YamlConfiguration.loadConfiguration(timersFile);
         ConfigurationSection section = data.getConfigurationSection("timers");
         if (section == null) return;
+        long savedAtMillis = data.getLong("savedAtEpochMillis", 0L);
+        long nowMillis = System.currentTimeMillis();
+        long offlineSeconds = savedAtMillis > 0L ? Math.max(0L, (nowMillis - savedAtMillis) / 1000L) : 0L;
 
         int restored = 0;
         for (String key : section.getKeys(false)) {
@@ -131,10 +143,15 @@ public class KeyAllZ extends JavaPlugin {
             int totalSeconds = section.getInt(key + ".totalSeconds");
             int remainingSeconds = section.getInt(key + ".remainingSeconds");
             boolean looping = section.getBoolean(key + ".looping");
-            int reminderInterval = section.getInt(key + ".reminderInterval", 10);
+            int reminderInterval = section.getInt(key + ".reminderInterval", getDefaultReminderInterval(def));
+            int adjustedRemaining = adjustRemainingForDowntime(remainingSeconds, totalSeconds, looping, offlineSeconds);
+
+            if (adjustedRemaining < 0) {
+                continue;
+            }
 
             // Create and start timer
-            Timer timer = new Timer(this, def, totalSeconds, remainingSeconds, rewardExecutor);
+            Timer timer = new Timer(this, def, totalSeconds, adjustedRemaining, rewardExecutor);
             timer.setLooping(looping);
             timer.setReminderInterval(reminderInterval);
 
@@ -147,17 +164,19 @@ public class KeyAllZ extends JavaPlugin {
         if (restored > 0) {
             getLogger().info("Restored " + restored + " active timers from session.");
         }
-
-        // Delete file after load to prevent stale data if server crashes later
-        timersFile.delete();
     }
 
-    private void saveTimers() {
-        if (timers.isEmpty()) return;
-
+    private void saveTimers(boolean logSuccess) {
         if (timersFile == null) timersFile = new File(getDataFolder(), "saved_timers.yml");
+        File dataFolder = getDataFolder();
+        if (!dataFolder.exists() && !dataFolder.mkdirs()) {
+            getLogger().warning("Could not create plugin data folder; skipping timer save.");
+            return;
+        }
+
         YamlConfiguration data = new YamlConfiguration();
         ConfigurationSection section = data.createSection("timers");
+        data.set("savedAtEpochMillis", System.currentTimeMillis());
 
         int saved = 0;
         for (Map.Entry<String, Timer> entry : timers.entrySet()) {
@@ -173,13 +192,62 @@ public class KeyAllZ extends JavaPlugin {
             saved++;
         }
 
-        if (saved > 0) {
-            try {
+        try {
+            if (saved > 0) {
                 data.save(timersFile);
-                getLogger().info("Saved " + saved + " active timers.");
-            } catch (IOException e) {
-                getLogger().log(Level.SEVERE, "Could not save active timers!", e);
+                if (logSuccess) {
+                    getLogger().info("Saved " + saved + " active timers.");
+                }
+            } else if (timersFile.exists() && !timersFile.delete()) {
+                getLogger().warning("Could not delete stale saved_timers.yml file.");
             }
+        } catch (IOException e) {
+            getLogger().log(Level.SEVERE, "Could not save active timers!", e);
         }
+    }
+
+    private void startAutosaveTask() {
+        stopAutosaveTask();
+        autosaveTask = Bukkit.getGlobalRegionScheduler().runAtFixedRate(this,
+                task -> saveTimers(false),
+                TIMER_AUTOSAVE_PERIOD_TICKS,
+                TIMER_AUTOSAVE_PERIOD_TICKS
+        );
+    }
+
+    private void stopAutosaveTask() {
+        if (autosaveTask != null) {
+            autosaveTask.cancel();
+            autosaveTask = null;
+        }
+    }
+
+    private int getDefaultReminderInterval(KeyAllDefinition def) {
+        KeyAllDefinition.ReminderDefinition reminder = def.getReminder();
+        if (reminder == null) return 10;
+        return Math.max(0, reminder.getInterval());
+    }
+
+    private int adjustRemainingForDowntime(int remainingSeconds, int totalSeconds, boolean looping, long offlineSeconds) {
+        if (totalSeconds <= 0) return -1;
+
+        int normalizedRemaining = Math.max(0, Math.min(remainingSeconds, totalSeconds));
+        if (offlineSeconds <= 0) {
+            return (looping && normalizedRemaining == 0) ? totalSeconds : normalizedRemaining;
+        }
+
+        long afterOffline = (long) normalizedRemaining - offlineSeconds;
+        if (afterOffline > 0) {
+            return (int) afterOffline;
+        }
+
+        if (!looping) {
+            return -1;
+        }
+
+        long overdue = -afterOffline;
+        long cycle = totalSeconds;
+        long intoCurrentCycle = overdue % cycle;
+        return intoCurrentCycle == 0L ? totalSeconds : (int) (cycle - intoCurrentCycle);
     }
 }

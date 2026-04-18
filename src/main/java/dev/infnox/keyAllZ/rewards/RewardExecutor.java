@@ -74,10 +74,9 @@ public class RewardExecutor {
     }
 
     public void clearExecuted(String keyAllName) {
-        int before = executed.size();
-        executed.removeIf(k -> k.startsWith(keyAllName + ":"));
-        // int after = executed.size();
-        // plugin.getLogger().info("[KeyAllZ] Cleared keys for '" + keyAllName + "'. Removed: " + (before - after));
+        String prefix = keyAllName + ":";
+        String prefixLower = prefix.toLowerCase(Locale.ROOT);
+        executed.removeIf(k -> k.startsWith(prefix) || k.toLowerCase(Locale.ROOT).startsWith(prefixLower));
     }
 
     public void stopSound(Player player, String soundKey) {

@@ -7,8 +7,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.logging.Level;
-
 public class Timer {
 
     private final JavaPlugin plugin;
@@ -44,7 +42,7 @@ public class Timer {
     }
 
     public void setReminderInterval(int reminderInterval) {
-        this.reminderInterval = reminderInterval;
+        this.reminderInterval = Math.max(0, reminderInterval);
     }
 
     public int getReminderInterval() {
@@ -107,7 +105,7 @@ public class Timer {
             return;
         }
 
-        int interval = reminder.getInterval();
+        int interval = reminderInterval;
 
         if (remainingSeconds <= 5 || (interval > 0 && remainingSeconds % interval == 0)) {
             if (Bukkit.getOnlinePlayers().isEmpty()) return;

@@ -85,6 +85,10 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
             sendError(sender, "Invalid time format: <white>'" + args[2] + "'</white> is not a number.");
             return;
         }
+        if (seconds <= 0) {
+            sendError(sender, "Timer duration must be greater than 0 seconds.");
+            return;
+        }
 
         boolean loop = args.length >= 4 && Boolean.parseBoolean(args[3]);
 
@@ -107,6 +111,7 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
         // Start fresh (no resume)
         timer.start(false);
         timers.put(defName, timer);
+        plugin.persistTimersNow();
 
         sendSuccess(sender, "Started KeyAll <gold>" + defName + "</gold> for <green>" + seconds + "s</green>" +
                 (loop ? " <dark_gray>(Looping)</dark_gray>" : "") + ".");
@@ -123,7 +128,11 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
 
         if (timer != null && timer.isRunning()) {
             timer.stop();
+            plugin.persistTimersNow();
             sendSuccess(sender, "Stopped timer for <gold>" + defName + "</gold>.");
+        } else if (timer != null) {
+            plugin.persistTimersNow();
+            sendError(sender, "There is no running timer for <white>" + defName + "</white>.");
         } else {
             sendError(sender, "There is no running timer for <white>" + defName + "</white>.");
         }
@@ -145,6 +154,7 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
 
         boolean loop = Boolean.parseBoolean(args[2]);
         timer.setLooping(loop);
+        plugin.persistTimersNow();
         sendSuccess(sender, "Looping for <gold>" + defName + "</gold> set to: " + (loop ? "<green>TRUE</green>" : "<red>FALSE</red>"));
     }
 
@@ -169,8 +179,13 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
             sendError(sender, "<white>'" + args[2] + "'</white> is not a valid number.");
             return;
         }
+        if (interval < 0) {
+            sendError(sender, "Reminder interval cannot be negative.");
+            return;
+        }
 
         timer.setReminderInterval(interval);
+        plugin.persistTimersNow();
         sendSuccess(sender, "Reminder interval for <gold>" + defName + "</gold> updated to every <green>" + interval + "s</green>.");
     }
 
@@ -203,6 +218,7 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
         int stopped = timers.size();
         timers.values().forEach(Timer::stop);
         timers.clear();
+        plugin.persistTimersNow();
 
         long time = System.currentTimeMillis() - start;
         sendSuccess(sender, "Configuration reloaded in <white>" + time + "ms</white>. Stopped <red>" + stopped + "</red> active timers.");
