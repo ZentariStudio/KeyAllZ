@@ -7,6 +7,7 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -63,7 +64,7 @@ public class KeyAllZPlaceholderExpansion extends PlaceholderExpansion {
         String[] parts = params.split("_", 2);
         if (parts.length < 2) return null;
 
-        String type = parts[0].toLowerCase();
+        String type = parts[0].toLowerCase(Locale.ROOT);
         String name = parts[1];
 
         if (type.equals("total") && name.startsWith("seconds_")) {
@@ -104,16 +105,7 @@ public class KeyAllZPlaceholderExpansion extends PlaceholderExpansion {
 
 
     private @Nullable Timer getTimer(String name) {
-
-        Timer timer = timers.get(name);
-        if (timer != null) return timer;
-
-        for (Map.Entry<String, Timer> entry : timers.entrySet()) {
-            if (entry.getKey().equalsIgnoreCase(name)) {
-                return entry.getValue();
-            }
-        }
-        return null;
+        return timers.get(name.toLowerCase(Locale.ROOT));
     }
 
     private long getRemainingSeconds(String name) {

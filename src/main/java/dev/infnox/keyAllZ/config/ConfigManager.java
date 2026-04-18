@@ -6,6 +6,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class ConfigManager {
@@ -43,12 +44,12 @@ public class ConfigManager {
             if (keyAllSec == null) continue;
 
             KeyAllDefinition def = KeyAllDefinition.fromConfig(name, keyAllSec);
-            keyAlls.put(name.toLowerCase(), def);
+            keyAlls.put(name.toLowerCase(Locale.ROOT), def);
         }
     }
 
     public KeyAllDefinition getKeyAll(String name) {
-        return keyAlls.get(name.toLowerCase());
+        return keyAlls.get(name.toLowerCase(Locale.ROOT));
     }
 
     public Collection<KeyAllDefinition> getAllKeyAlls() {

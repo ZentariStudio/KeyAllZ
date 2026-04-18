@@ -51,7 +51,7 @@ public class RewardExecutor {
         foliaLib.getScheduler().runNextTick(task -> runConsoleCommands(def));
 
         // Player batch console commands (PLAYER:)
-        runPlayerBatchConsoleCommands(def, plugin);
+        runPlayerBatchConsoleCommands(def);
     }
 
     public void sendReminder(KeyAllDefinition def, Player player, int secondsRemaining) {
@@ -127,9 +127,8 @@ public class RewardExecutor {
         }
     }
 
-    public static void runPlayerBatchConsoleCommands(KeyAllDefinition def, JavaPlugin plugin) {
+    private void runPlayerBatchConsoleCommands(KeyAllDefinition def) {
         if (def.getConsoleCommands() == null || def.getConsoleCommands().isEmpty()) return;
-        FoliaLib foliaLib = new FoliaLib(plugin);
         Set<String> consoleCommands = new LinkedHashSet<>(def.getConsoleCommands());
 
         for (String cmd : consoleCommands) {
@@ -137,7 +136,7 @@ public class RewardExecutor {
                 String actualCmd = cmd.substring("PLAYER:".length()).trim();
 
                 List<Player> eligiblePlayers = Bukkit.getOnlinePlayers().stream()
-                        .filter(p -> new RewardExecutor(plugin).hasPermission(def, p))
+                        .filter(p -> hasPermission(def, p))
                         .collect(Collectors.toList());
 
                 if (eligiblePlayers.isEmpty()) continue;

@@ -7,6 +7,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.Collection;
+
 public class Timer {
 
     private final JavaPlugin plugin;
@@ -108,9 +110,10 @@ public class Timer {
         int interval = reminderInterval;
 
         if (remainingSeconds <= 5 || (interval > 0 && remainingSeconds % interval == 0)) {
-            if (Bukkit.getOnlinePlayers().isEmpty()) return;
+            Collection<? extends Player> onlinePlayers = Bukkit.getOnlinePlayers();
+            if (onlinePlayers.isEmpty()) return;
 
-            for (Player player : Bukkit.getOnlinePlayers()) {
+            for (Player player : onlinePlayers) {
                 rewardExecutor.sendReminder(definition, player, remainingSeconds);
             }
         }
@@ -118,9 +121,11 @@ public class Timer {
 
 
     private void handleEnd() {
+        Collection<? extends Player> onlinePlayers = Bukkit.getOnlinePlayers();
+
         // Execute Rewards
-        if (!Bukkit.getOnlinePlayers().isEmpty()) {
-            for (Player player : Bukkit.getOnlinePlayers()) {
+        if (!onlinePlayers.isEmpty()) {
+            for (Player player : onlinePlayers) {
                 rewardExecutor.execute(definition, player);
             }
         }
