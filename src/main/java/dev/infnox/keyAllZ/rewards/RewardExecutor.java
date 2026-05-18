@@ -1,7 +1,6 @@
 package dev.infnox.keyAllZ.rewards;
 
 import com.tcoded.folialib.FoliaLib;
-import com.tcoded.folialib.wrapper.task.WrappedTask;
 import dev.infnox.keyAllZ.config.KeyAllDefinition;
 import me.clip.placeholderapi.PlaceholderAPI;
 import net.kyori.adventure.text.Component;
@@ -14,44 +13,34 @@ import org.bukkit.plugin.java.JavaPlugin;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 public class RewardExecutor {
 
     private final JavaPlugin plugin;
     private final FoliaLib foliaLib;
-    private final Set<String> executed = ConcurrentHashMap.newKeySet(); // thread-safe
+    private final Set<String> executed = ConcurrentHashMap.newKeySet();
     private final MiniMessage mm = MiniMessage.miniMessage();
 
-    private static final Duration TITLE_FADE_IN = Duration.ofMillis(500);
-    private static final Duration TITLE_STAY = Duration.ofSeconds(2);
+    private static final Duration TITLE_FADE_IN  = Duration.ofMillis(500);
+    private static final Duration TITLE_STAY     = Duration.ofSeconds(2);
     private static final Duration TITLE_FADE_OUT = Duration.ofMillis(500);
-    private static final int CONSOLE_BATCH_SIZE = 50;
 
     public RewardExecutor(JavaPlugin plugin) {
-        this.plugin = plugin;
-        this.foliaLib = new FoliaLib(plugin);
+        this.plugin    = plugin;
+        this.foliaLib  = new FoliaLib(plugin);
     }
 
-    public void execute(KeyAllDefinition def, Player player) {
+    public void execute(KeyAllDefinition def, Player player, String cycleId) {
         if (!hasPermission(def, player)) return;
 
-        String key = def.getName() + ":" + player.getUniqueId();
-        if (!executed.add(key)) {
-            return;
-        }
+        String localKey = def.getName() + ":" + player.getUniqueId() + ":" + cycleId;
+        if (!executed.add(localKey)) return;
 
-        // Player specific rewards
         foliaLib.getScheduler().runAtEntity(player, task -> runPlayerRewards(def, player));
     }
 
-    public void executeGlobalCommands(KeyAllDefinition def) {
-        // Global console only commands
+    public void executeGlobalOnlyCommands(KeyAllDefinition def) {
         foliaLib.getScheduler().runNextTick(task -> runConsoleCommands(def));
-
-        // Player batch console commands (PLAYER:)
-        runPlayerBatchConsoleCommands(def);
     }
 
     public void sendReminder(KeyAllDefinition def, Player player, int secondsRemaining) {
@@ -60,12 +49,12 @@ public class RewardExecutor {
 
         foliaLib.getScheduler().runAtEntity(player, task -> {
             String title = parse(reminder.getTitle(), player, def, secondsRemaining);
-            String ab = parse(reminder.getActionbar(), player, def, secondsRemaining);
-            String chat = parse(reminder.getMessage(), player, def, secondsRemaining);
+            String ab    = parse(reminder.getActionbar(), player, def, secondsRemaining);
+            String chat  = parse(reminder.getMessage(), player, def, secondsRemaining);
 
             if (notEmpty(title)) sendComponent(player, title, ComponentType.TITLE);
-            if (notEmpty(ab)) sendComponent(player, ab, ComponentType.ACTIONBAR);
-            if (notEmpty(chat)) sendComponent(player, chat, ComponentType.CHAT);
+            if (notEmpty(ab))    sendComponent(player, ab,    ComponentType.ACTIONBAR);
+            if (notEmpty(chat))  sendComponent(player, chat,  ComponentType.CHAT);
 
             if (notEmpty(reminder.getSound())) {
                 playSound(player, reminder.getSound(), reminder.getSoundVolume(), reminder.getSoundPitch());
@@ -74,7 +63,7 @@ public class RewardExecutor {
     }
 
     public void clearExecuted(String keyAllName) {
-        String prefix = keyAllName + ":";
+        String prefix      = keyAllName + ":";
         String prefixLower = prefix.toLowerCase(Locale.ROOT);
         executed.removeIf(k -> k.startsWith(prefix) || k.toLowerCase(Locale.ROOT).startsWith(prefixLower));
     }
@@ -89,113 +78,86 @@ public class RewardExecutor {
 
     private boolean hasPermission(KeyAllDefinition def, Player player) {
         String perm = def.getPermission();
-        if (perm != null && !perm.isEmpty() && !player.hasPermission(perm)) {
-            return false;
-        }
-        return true;
+        return perm == null || perm.isEmpty() || player.hasPermission(perm);
     }
 
     private void runPlayerRewards(KeyAllDefinition def, Player player) {
-        if (notEmpty(def.getTitle())) sendComponent(player, parse(def.getTitle(), player, def, 0), ComponentType.TITLE);
-        if (notEmpty(def.getActionbar())) sendComponent(player, parse(def.getActionbar(), player, def, 0), ComponentType.ACTIONBAR);
-        if (notEmpty(def.getChatMessage())) sendComponent(player, parse(def.getChatMessage(), player, def, 0), ComponentType.CHAT);
+        // Visuals and Sounds
+        if (notEmpty(def.getTitle()))      sendComponent(player, parse(def.getTitle(),      player, def, 0), ComponentType.TITLE);
+        if (notEmpty(def.getActionbar()))  sendComponent(player, parse(def.getActionbar(),  player, def, 0), ComponentType.ACTIONBAR);
+        if (notEmpty(def.getChatMessage()))sendComponent(player, parse(def.getChatMessage(),player, def, 0), ComponentType.CHAT);
 
         if (notEmpty(def.getSound())) {
             playSound(player, def.getSound(), def.getSoundVolume(), def.getSoundPitch());
         }
 
+        // Player-run commands
         if (def.getPlayerCommands() != null && !def.getPlayerCommands().isEmpty()) {
-            def.getPlayerCommands().stream()
-                    .map(cmd -> parse(cmd, player, def, 0))
-                    .filter(this::notEmpty)
-                    .distinct()
-                    .forEach(player::performCommand);
+            for (String cmd : def.getPlayerCommands()) {
+                String parsed = parse(cmd, player, def, 0);
+                if (notEmpty(parsed)) {
+                    try {
+                        player.performCommand(parsed);
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("[KeyAllZ] Player command '" + parsed + "' failed for " + player.getName() + ": " + e.getMessage());
+                    }
+                }
+            }
+        }
+
+        // Console-run commands (PLAYER: prefixed)
+        // These are now run here to take advantage of the per-player region thread (runAtEntity)
+        // and to avoid the "delayed" look of the old batcher.
+        if (def.getConsoleCommands() != null && !def.getConsoleCommands().isEmpty()) {
+            for (String cmd : def.getConsoleCommands()) {
+                if (cmd.startsWith("PLAYER:")) {
+                    String actualCmd = cmd.substring(7).trim(); // Skip "PLAYER:"
+                    String parsed = parse(actualCmd, player, def, 0);
+                    if (notEmpty(parsed)) {
+                        try {
+                            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), parsed);
+                        } catch (Exception e) {
+                            plugin.getLogger().warning("[KeyAllZ] Console command '" + parsed + "' failed for " + player.getName() + ": " + e.getMessage());
+                        }
+                    }
+                }
+            }
         }
     }
 
     private void runConsoleCommands(KeyAllDefinition def) {
         if (def.getConsoleCommands() == null || def.getConsoleCommands().isEmpty()) return;
-        Set<String> consoleCommands = new LinkedHashSet<>(def.getConsoleCommands());
-
-        for (String cmd : consoleCommands) {
-            if (cmd.startsWith("PLAYER:")) {
-                continue;
-            }
-            if (notEmpty(cmd)) {
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
-            }
-        }
-    }
-
-    private void runPlayerBatchConsoleCommands(KeyAllDefinition def) {
-        if (def.getConsoleCommands() == null || def.getConsoleCommands().isEmpty()) return;
-        Set<String> consoleCommands = new LinkedHashSet<>(def.getConsoleCommands());
-
-        for (String cmd : consoleCommands) {
-            if (cmd.startsWith("PLAYER:")) {
-                String actualCmd = cmd.substring("PLAYER:".length()).trim();
-
-                List<Player> eligiblePlayers = Bukkit.getOnlinePlayers().stream()
-                        .filter(p -> hasPermission(def, p))
-                        .collect(Collectors.toList());
-
-                if (eligiblePlayers.isEmpty()) continue;
-
-                final int total = eligiblePlayers.size();
-                final int[] index = {0};
-
-                Consumer<WrappedTask> batchConsumer = new Consumer<>() {
-                    @Override
-                    public void accept(WrappedTask task) {
-                        int end = Math.min(index[0] + CONSOLE_BATCH_SIZE, total);
-                        for (int i = index[0]; i < end; i++) {
-                            Player target = eligiblePlayers.get(i);
-                            String replaced = actualCmd.replace("%player%", target.getName());
-                            String parsed = Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")
-                                    ? PlaceholderAPI.setPlaceholders(target, replaced)
-                                    : replaced;
-                            if (!parsed.isEmpty()) {
-                                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), parsed);
-                            }
-                        }
-                        index[0] = end;
-                        if (index[0] < total) {
-                            foliaLib.getScheduler().runNextTick(this);
-                        }
-                    }
-                };
-
-                foliaLib.getScheduler().runNextTick(batchConsumer);
+        for (String cmd : def.getConsoleCommands()) {
+            if (!cmd.startsWith("PLAYER:") && notEmpty(cmd)) {
+                try {
+                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+                } catch (Exception e) {
+                    plugin.getLogger().warning("[KeyAllZ] Global console command '" + cmd + "' failed: " + e.getMessage());
+                }
             }
         }
     }
 
     private void sendComponent(Player player, String text, ComponentType type) {
-        // Double check empty before doing heavy deserialization
         if (!notEmpty(text)) return;
-
         switch (type) {
             case TITLE -> {
-                Title title = Title.title(
+                player.showTitle(Title.title(
                         mm.deserialize(text),
                         Component.empty(),
                         Title.Times.times(TITLE_FADE_IN, TITLE_STAY, TITLE_FADE_OUT)
-                );
-                player.showTitle(title);
+                ));
             }
             case ACTIONBAR -> player.sendActionBar(mm.deserialize(text));
-            case CHAT -> player.sendMessage(mm.deserialize(text));
+            case CHAT      -> player.sendMessage(mm.deserialize(text));
         }
     }
 
     private void playSound(Player player, String soundName, float volume, float pitch) {
         try {
-            player.playSound(player.getLocation(),
-                    soundName,
-                    volume > 0 ? volume : 1f,
-                    pitch > 0 ? pitch : 1f);
+            player.playSound(player.getLocation(), soundName, volume > 0 ? volume : 1f, pitch > 0 ? pitch : 1f);
         } catch (Exception e) {
-            plugin.getLogger().warning("Invalid sound for KeyAll for " + player.getName() + ": " + e.getMessage());
+            plugin.getLogger().warning("Invalid sound '" + soundName + "' for " + player.getName() + ": " + e.getMessage());
         }
     }
 
@@ -208,12 +170,16 @@ public class RewardExecutor {
 
     private String parse(String text, Player player, KeyAllDefinition def, int secondsRemaining) {
         if (text == null || text.isEmpty()) return "";
+        
+        if (!text.contains("%")) return text;
 
-        // Standard placeholders
         text = text.replace("%player%", player.getName())
-                .replace("%keyall%", def.getName())
-                .replace("%time%", String.valueOf(secondsRemaining))
-                .replace("%remaining-time%", formatRemainingTime(secondsRemaining));
+                   .replace("%keyall%", def.getName());
+        
+        if (secondsRemaining > 0) {
+            text = text.replace("%time%", String.valueOf(secondsRemaining))
+                       .replace("%remaining-time%", formatRemainingTime(secondsRemaining));
+        }
 
         return Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")
                 ? PlaceholderAPI.setPlaceholders(player, text)

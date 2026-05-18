@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn clean *)",
+      "Bash(./mvnw clean *)",
+      "Bash(mvn.cmd clean *)",
+      "Bash(\"/c/Program Files/JetBrains/IntelliJ IDEA 2025.3.3/plugins/maven/lib/maven3/bin/mvn\" clean package -q)"
+    ]
+  }
+}

@@ -6,7 +6,7 @@
 
     <groupId>dev.infnox</groupId>
     <artifactId>KeyAllZ</artifactId>
-    <version>3.2.1</version>
+    <version>3.3.0</version>
     <packaging>jar</packaging>
 
     <name>KeyAllZ</name>
@@ -45,6 +45,14 @@
                         <relocation>
                             <pattern>com.tcoded.folialib</pattern>
                             <shadedPattern>dev.infnox.keyAllZ.lib.folialib</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>redis.clients.jedis</pattern>
+                            <shadedPattern>dev.infnox.keyAllZ.lib.jedis</shadedPattern>
+                        </relocation>
+                        <relocation>
+                            <pattern>org.apache.commons.pool2</pattern>
+                            <shadedPattern>dev.infnox.keyAllZ.lib.pool2</shadedPattern>
                         </relocation>
                     </relocations>
                 </configuration>
@@ -101,6 +109,12 @@
             <groupId>fr.mrmicky</groupId>
             <artifactId>fastinv</artifactId>
             <version>3.1.2</version>
+        </dependency>
+        <dependency>
+            <groupId>redis.clients</groupId>
+            <artifactId>jedis</artifactId>
+            <version>5.1.0</version>
+            <scope>compile</scope>
         </dependency>
     </dependencies>
 </project>

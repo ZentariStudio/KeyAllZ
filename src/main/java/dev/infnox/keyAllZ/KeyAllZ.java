@@ -4,6 +4,8 @@ import dev.infnox.keyAllZ.commands.KeyAllZCommands;
 import dev.infnox.keyAllZ.config.ConfigManager;
 import dev.infnox.keyAllZ.config.KeyAllDefinition;
 import dev.infnox.keyAllZ.placeholder.KeyAllZPlaceholderExpansion;
+import dev.infnox.keyAllZ.redis.RedisManager;
+import dev.infnox.keyAllZ.redis.RedisTimerSync;
 import dev.infnox.keyAllZ.rewards.RewardExecutor;
 import dev.infnox.keyAllZ.timer.Timer;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
@@ -18,6 +20,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.logging.Level;
 
 public class KeyAllZ extends JavaPlugin {
@@ -25,6 +28,8 @@ public class KeyAllZ extends JavaPlugin {
 
     private RewardExecutor rewardExecutor;
     private ConfigManager configManager;
+    private RedisManager redisManager;
+    private RedisTimerSync redisSync;
 
     private final Map<String, Timer> timers = new HashMap<>();
     private File timersFile;
@@ -32,9 +37,7 @@ public class KeyAllZ extends JavaPlugin {
 
     @Override
     public void onEnable() {
-
         printStartupBanner();
-
 
         if (!isPaperOrFolia()) {
             getLogger().severe("====================================================");
@@ -48,15 +51,15 @@ public class KeyAllZ extends JavaPlugin {
         }
 
         saveDefaultConfig();
-
         configManager = new ConfigManager(this);
 
-        // Load definitions logic
         for (KeyAllDefinition def : configManager.getAllKeyAlls()) {
             getLogger().info("Loaded KeyAll definition: " + def.getName());
         }
 
         rewardExecutor = new RewardExecutor(this);
+
+        initRedis();
 
         new KeyAllZCommands(this, rewardExecutor, configManager);
 
@@ -65,12 +68,10 @@ public class KeyAllZ extends JavaPlugin {
             getLogger().info("Registered KeyAllZ PlaceholderAPI expansion.");
         }
 
-        // Load saved timers
         loadTimers();
         startAutosaveTask();
 
-         new Metrics(this, 21830);
-
+        new Metrics(this, 21830);
         getLogger().info("KeyAllZ enabled successfully!");
     }
 
@@ -78,6 +79,9 @@ public class KeyAllZ extends JavaPlugin {
     public void onDisable() {
         stopAutosaveTask();
         saveTimers(true);
+        if (redisManager != null) {
+            try { redisManager.close(); } catch (Exception ignored) {}
+        }
         getLogger().info("KeyAllZ disabled!");
     }
 
@@ -93,40 +97,72 @@ public class KeyAllZ extends JavaPlugin {
         return timers;
     }
 
+    public RedisTimerSync getRedisSync() {
+        return redisSync;
+    }
+
     public void persistTimersNow() {
         saveTimers(true);
     }
 
+    // Redis initialisation
+    private void initRedis() {
+        var cfg = getConfig();
+        if (!cfg.getBoolean("redis.enabled", false)) return;
 
-    private void printStartupBanner() {
-        String version = getDescription().getVersion();
-        Bukkit.getConsoleSender().sendMessage(MiniMessage.miniMessage().deserialize(
-                "<br>" +
-                        "<gradient:#FFD700:#FFA500><bold>KeyAllZ</bold></gradient> <gray>v" + version + "</gray><br>" +
-                        "<gray>Running on:</gray> <white>" + Bukkit.getName() + " " + Bukkit.getVersion() + "</white><br>" +
-                        "<gray>Developed by:</gray> <white>luvtoxic</white><br>"
-        ));
-    }
+        String host   = cfg.getString("redis.host", "localhost");
+        int    port   = cfg.getInt("redis.port", 6379);
+        String pass   = cfg.getString("redis.password", "");
+        int    db     = cfg.getInt("redis.database", 0);
+        String prefix = cfg.getString("redis.key-prefix", "keyallz");
 
-    private boolean isPaperOrFolia() {
+        // Pool settings for performance tuning
+        int maxTotal = cfg.getInt("redis.pool.max-total", 16);
+        int maxIdle  = cfg.getInt("redis.pool.max-idle", 8);
+        int minIdle  = cfg.getInt("redis.pool.min-idle", 2);
+
+        // Stable server-id: persist in config if auto-generated
+        String sid = cfg.getString("redis.server-id", "");
+        if (sid == null || sid.isBlank()) {
+            sid = UUID.randomUUID().toString().substring(0, 8);
+            cfg.set("redis.server-id", sid);
+            saveConfig();
+        }
+
         try {
-            Class.forName("io.papermc.paper.util.Tick");
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
+            redisManager = new RedisManager(host, port, pass, db, maxTotal, maxIdle, minIdle, getLogger());
+            if (!redisManager.ping()) {
+                getLogger().severe("[Redis] Could not connect to Redis at " + host + ":" + port + ". Redis sync disabled.");
+                redisManager.close();
+                redisManager = null;
+                return;
+            }
+            redisSync = new RedisTimerSync(this, redisManager, sid, prefix);
+            getLogger().info("[Redis] Connected (" + host + ":" + port + ") — server-id: " + sid);
+        } catch (Exception e) {
+            getLogger().log(Level.SEVERE, "[Redis] Failed to initialise Redis. Redis sync disabled.", e);
+            if (redisManager != null) {
+                try { redisManager.close(); } catch (Exception ignored) {}
+                redisManager = null;
+            }
         }
     }
 
-
     private void loadTimers() {
+        if (redisSync != null && redisSync.loadTimersFromRedis()) return;
+        loadTimersFromYaml();
+    }
+
+    private void loadTimersFromYaml() {
         timersFile = new File(getDataFolder(), "saved_timers.yml");
         if (!timersFile.exists()) return;
 
         YamlConfiguration data = YamlConfiguration.loadConfiguration(timersFile);
         ConfigurationSection section = data.getConfigurationSection("timers");
         if (section == null) return;
-        long savedAtMillis = data.getLong("savedAtEpochMillis", 0L);
-        long nowMillis = System.currentTimeMillis();
+
+        long savedAtMillis  = data.getLong("savedAtEpochMillis", 0L);
+        long nowMillis      = System.currentTimeMillis();
         long offlineSeconds = savedAtMillis > 0L ? Math.max(0L, (nowMillis - savedAtMillis) / 1000L) : 0L;
 
         int restored = 0;
@@ -135,35 +171,31 @@ public class KeyAllZ extends JavaPlugin {
             if (defName == null) continue;
 
             KeyAllDefinition def = configManager.getKeyAll(defName);
-
             if (def == null) {
                 getLogger().warning("Skipping saved timer '" + key + "': Definition '" + defName + "' not found.");
                 continue;
             }
 
-            int totalSeconds = section.getInt(key + ".totalSeconds");
+            int totalSeconds     = section.getInt(key + ".totalSeconds");
             int remainingSeconds = section.getInt(key + ".remainingSeconds");
-            boolean looping = section.getBoolean(key + ".looping");
+            boolean looping      = section.getBoolean(key + ".looping");
             int reminderInterval = section.getInt(key + ".reminderInterval", getDefaultReminderInterval(def));
             int adjustedRemaining = adjustRemainingForDowntime(remainingSeconds, totalSeconds, looping, offlineSeconds);
 
-            if (adjustedRemaining < 0) {
-                continue;
-            }
+            if (adjustedRemaining < 0) continue;
 
-            // Create and start timer
             Timer timer = new Timer(this, def, totalSeconds, adjustedRemaining, rewardExecutor);
             timer.setLooping(looping);
             timer.setReminderInterval(reminderInterval);
+            if (redisSync != null) timer.setSyncListener(redisSync);
 
-            // Resume!
             timer.start(true);
             timers.put(def.getName().toLowerCase(Locale.ROOT), timer);
             restored++;
         }
 
         if (restored > 0) {
-            getLogger().info("Restored " + restored + " active timers from session.");
+            getLogger().info("Restored " + restored + " active timer(s) from session.");
         }
     }
 
@@ -185,20 +217,18 @@ public class KeyAllZ extends JavaPlugin {
             if (!timer.isRunning()) continue;
 
             String path = entry.getKey();
-            section.set(path + ".definition", timer.getDefinition().getName());
-            section.set(path + ".totalSeconds", timer.getTotalTime());
-            section.set(path + ".remainingSeconds", timer.getTimeRemaining());
-            section.set(path + ".looping", timer.isLooping());
-            section.set(path + ".reminderInterval", timer.getReminderInterval());
+            section.set(path + ".definition",       timer.getDefinition().getName());
+            section.set(path + ".totalSeconds",      timer.getTotalTime());
+            section.set(path + ".remainingSeconds",  timer.getTimeRemaining());
+            section.set(path + ".looping",           timer.isLooping());
+            section.set(path + ".reminderInterval",  timer.getReminderInterval());
             saved++;
         }
 
         try {
             if (saved > 0) {
                 data.save(timersFile);
-                if (logSuccess) {
-                    getLogger().info("Saved " + saved + " active timers.");
-                }
+                if (logSuccess) getLogger().info("Saved " + saved + " active timer(s).");
             } else if (timersFile.exists() && !timersFile.delete()) {
                 getLogger().warning("Could not delete stale saved_timers.yml file.");
             }
@@ -238,17 +268,31 @@ public class KeyAllZ extends JavaPlugin {
         }
 
         long afterOffline = (long) normalizedRemaining - offlineSeconds;
-        if (afterOffline > 0) {
-            return (int) afterOffline;
-        }
-
-        if (!looping) {
-            return -1;
-        }
+        if (afterOffline > 0) return (int) afterOffline;
+        if (!looping) return -1;
 
         long overdue = -afterOffline;
         long cycle = totalSeconds;
         long intoCurrentCycle = overdue % cycle;
         return intoCurrentCycle == 0L ? totalSeconds : (int) (cycle - intoCurrentCycle);
+    }
+
+    private void printStartupBanner() {
+        String version = getDescription().getVersion();
+        Bukkit.getConsoleSender().sendMessage(MiniMessage.miniMessage().deserialize(
+                "<br>" +
+                        "<gradient:#FFD700:#FFA500><bold>KeyAllZ</bold></gradient> <gray>v" + version + "</gray><br>" +
+                        "<gray>Running on:</gray> <white>" + Bukkit.getName() + " " + Bukkit.getVersion() + "</white><br>" +
+                        "<gray>Developed by:</gray> <white>luvtoxic</white><br>"
+        ));
+    }
+
+    private boolean isPaperOrFolia() {
+        try {
+            Class.forName("io.papermc.paper.util.Tick");
+            return true;
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
     }
 }

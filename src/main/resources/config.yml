@@ -2,6 +2,32 @@
 # Define your KeyAll events here.
 # Each entry supports messages, sounds, commands, and reminders.
 
+# Redis Multi-Server Sync
+# Turn this on if you want timers shared across all your servers.
+# Commands like start, stop, loop, remind, and reload will run everywhere.
+# Player rewards are handled per server (only for players online there).
+# Console commands without PLAYER: will only run once across the network.
+
+redis:
+  enabled: false
+  host: "localhost"
+  port: 6379
+  password: ""
+  database: 0
+
+  # Redis Pool Settings
+  # Adjust these if you have a very large network (1000+ players)
+  pool:
+    max-total: 16
+    max-idle: 8
+    min-idle: 2
+
+  # Prefix used for Redis keys (change if you're using Redis for other stuff too)
+  key-prefix: "keyallz"
+
+  # Unique server ID (leave blank to auto assign)
+  server-id: ""
+
 keyalls:
   example:
     title: "<green>You received a KeyAll reward!"

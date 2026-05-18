@@ -99,16 +99,17 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
             sendInfo(sender, "<yellow>Overwriting</yellow> existing timer for <white>" + defName + "</white>.");
         }
 
-        // Timer handles reminders/end
         Timer timer = new Timer(plugin, def, seconds, rewardExecutor);
         timer.setLooping(loop);
 
-        // Apply reminder interval from config
         if (def.getReminder() != null) {
             timer.setReminderInterval(def.getReminder().getInterval());
         }
 
-        // Start fresh (no resume)
+        if (plugin.getRedisSync() != null) {
+            timer.setSyncListener(plugin.getRedisSync());
+        }
+
         timer.start(false);
         timers.put(defName, timer);
         plugin.persistTimersNow();
@@ -154,6 +155,7 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
 
         boolean loop = Boolean.parseBoolean(args[2]);
         timer.setLooping(loop);
+        if (plugin.getRedisSync() != null) plugin.getRedisSync().publishLoopSet(defName, loop);
         plugin.persistTimersNow();
         sendSuccess(sender, "Looping for <gold>" + defName + "</gold> set to: " + (loop ? "<green>TRUE</green>" : "<red>FALSE</red>"));
     }
@@ -185,6 +187,7 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
         }
 
         timer.setReminderInterval(interval);
+        if (plugin.getRedisSync() != null) plugin.getRedisSync().publishRemindSet(defName, interval);
         plugin.persistTimersNow();
         sendSuccess(sender, "Reminder interval for <gold>" + defName + "</gold> updated to every <green>" + interval + "s</green>.");
     }
@@ -212,16 +215,31 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
 
     private void handleReload(CommandSender sender) {
         long start = System.currentTimeMillis();
+
+        // Broadcast reload to other servers before reloading locally
+        if (plugin.getRedisSync() != null) plugin.getRedisSync().publishReload();
+
         configManager.reload();
 
-        // Cleanup old timers
-        int stopped = timers.size();
-        timers.values().forEach(Timer::stop);
-        timers.clear();
+        // Update existing timers with new definitions
+        List<String> toRemove = new ArrayList<>();
+        int updated = 0;
+        for (Map.Entry<String, Timer> entry : timers.entrySet()) {
+            KeyAllDefinition newDef = configManager.getKeyAll(entry.getKey());
+            if (newDef == null) {
+                entry.getValue().stop();
+                toRemove.add(entry.getKey());
+            } else {
+                entry.getValue().setDefinition(newDef);
+                updated++;
+            }
+        }
+        toRemove.forEach(timers::remove);
         plugin.persistTimersNow();
 
         long time = System.currentTimeMillis() - start;
-        sendSuccess(sender, "Configuration reloaded in <white>" + time + "ms</white>. Stopped <red>" + stopped + "</red> active timers.");
+        sendSuccess(sender, "Configuration reloaded in <white>" + time + "ms</white>. Updated <green>" + updated + "</green> active timers" +
+                (toRemove.isEmpty() ? "." : ", stopped <red>" + toRemove.size() + "</red> whose definitions were removed."));
     }
 
     /* UTILS */
