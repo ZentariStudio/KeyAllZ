@@ -14,9 +14,11 @@ public class ConfigManager {
     private final JavaPlugin plugin;
     private FileConfiguration config;
     private final Map<String, KeyAllDefinition> keyAlls = new HashMap<>();
+    private final LangManager langManager;
 
-    public ConfigManager(JavaPlugin plugin) {
+    public ConfigManager(JavaPlugin plugin, LangManager langManager) {
         this.plugin = plugin;
+        this.langManager = langManager;
         reload();
     }
 
@@ -27,6 +29,7 @@ public class ConfigManager {
         plugin.saveDefaultConfig();
         plugin.reloadConfig();
         this.config = plugin.getConfig();
+        langManager.reload();
         loadKeyAlls();
     }
 

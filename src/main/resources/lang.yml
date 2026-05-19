@@ -1,0 +1,54 @@
+# KeyAllZ Language Configuration
+# This file uses MiniMessage for formatting.
+
+prefix: "<gradient:#FFD700:#FFA500><bold>KeyAllZ</bold></gradient> <dark_gray>»</dark_gray> "
+error-prefix: "<dark_gray>[<red>✖</red>]</dark_gray> <red>"
+success-prefix: "<dark_gray>[<green>✔</green>]</dark_gray> <gray>"
+
+commands:
+  unknown-subcommand: "Unknown subcommand. Type <yellow>/keyallz</yellow> for help."
+  invalid-usage: "Invalid usage."
+  usage-try: " <gold>»</gold> <gray>Try:</gray> <yellow>%usage%</yellow>"
+  usage-info: " <gold>»</gold> <gray>Info:</gray> %description%"
+  
+  start:
+    def-not-found: "The definition <white>'%definition%'</white> does not exist in config."
+    invalid-time: "Invalid time format: <white>'%input%'</white> is not a number."
+    time-too-low: "Timer duration must be greater than 0 seconds."
+    overwriting: "<yellow>Overwriting</yellow> existing timer for <white>%definition%</white>."
+    success: "Started KeyAll <gold>%definition%</gold> for <green>%seconds%s</green>%looping%."
+    looping-tag: " <dark_gray>(Looping)</dark_gray>"
+
+  stop:
+    success: "Stopped timer for <gold>%definition%</gold>."
+    not-running: "There is no running timer for <white>%definition%</white>."
+
+  loop:
+    no-timer: "No active timer found for <white>%definition%</white>. Start one first!"
+    success: "Looping for <gold>%definition%</gold> set to: %state%"
+    state-true: "<green>TRUE</green>"
+    state-false: "<red>FALSE</red>"
+
+  remind:
+    no-timer: "No active timer found for <white>%definition%</white>."
+    invalid-number: "<white>'%input%'</white> is not a valid number."
+    negative-interval: "Reminder interval cannot be negative."
+    success: "Reminder interval for <gold>%definition%</gold> updated to every <green>%interval%s</green>."
+
+  list:
+    no-timers: "There are currently <red>no active timers</red>."
+    header: "<st><dark_gray>             </dark_gray></st> <gradient:#FFD700:#FFA500>Active Timers</gradient> <st><dark_gray>             </dark_gray></st>"
+    line: " <dark_gray>»</dark_gray> <gold>%definition%</gold> <dark_gray>|</dark_gray> <gray>Time:</gray> <white>%time%s</white> <dark_gray>|</dark_gray> %status% <dark_gray>|</dark_gray> <gray>Remind:</gray> <white>%remind%s</white>"
+    status-looping: "<green>Looping</green>"
+    status-once: "<yellow>Once</yellow>"
+    footer: "<dark_gray><st>                                     </st></dark_gray>"
+
+  reload:
+    success: "Configuration reloaded in <white>%time%ms</white>. Updated <green>%updated%</green> active timers%stopped%."
+    stopped-count: ", stopped <red>%count%</red> whose definitions were removed"
+
+  help:
+    header: "<br><st><dark_gray>-------------</dark_gray></st> <gradient:#FFD700:#FFA500><bold>KeyAllZ Help</bold></gradient> <st><dark_gray>-------------</dark_gray></st><br>"
+    line: " <gold>»</gold> <gray>%syntax%</gray>"
+    line-hover: "<yellow>Action:</yellow> <gray>%description%</gray>\n<gray><i>Click to auto-complete</i></gray>"
+    footer: "<br><gray><i>Hover over commands for details.</i></gray>"

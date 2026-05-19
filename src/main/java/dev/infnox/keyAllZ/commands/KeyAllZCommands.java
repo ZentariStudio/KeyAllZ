@@ -3,6 +3,7 @@ package dev.infnox.keyAllZ.commands;
 import dev.infnox.keyAllZ.KeyAllZ;
 import dev.infnox.keyAllZ.config.KeyAllDefinition;
 import dev.infnox.keyAllZ.config.ConfigManager;
+import dev.infnox.keyAllZ.config.LangManager;
 import dev.infnox.keyAllZ.rewards.RewardExecutor;
 import dev.infnox.keyAllZ.timer.Timer;
 import net.kyori.adventure.text.Component;
@@ -20,12 +21,9 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
     private final KeyAllZ plugin;
     private final RewardExecutor rewardExecutor;
     private final ConfigManager configManager;
+    private final LangManager lang;
     private final Map<String, Timer> timers;
     private final MiniMessage mm = MiniMessage.miniMessage();
-
-    private static final String PREFIX = "<gradient:#FFD700:#FFA500><bold>KeyAllZ</bold></gradient> <dark_gray>»</dark_gray> ";
-    private static final String ERROR_PREFIX = "<dark_gray>[<red>✖</red>]</dark_gray> <red>";
-    private static final String SUCCESS_PREFIX = "<dark_gray>[<green>✔</green>]</dark_gray> <gray>";
 
     private final List<String> subCommands = List.of("start", "stop", "loop", "remind", "list", "reload");
 
@@ -33,6 +31,7 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
         this.plugin = plugin;
         this.rewardExecutor = rewardExecutor;
         this.configManager = configManager;
+        this.lang = plugin.getLangManager();
         this.timers = plugin.getTimers();
 
         PluginCommand command = plugin.getCommand("keyallz");
@@ -57,7 +56,7 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
             case "remind" -> handleRemind(sender, args);
             case "list" -> handleList(sender);
             case "reload" -> handleReload(sender);
-            default -> sendError(sender, "Unknown subcommand. Type <yellow>/keyallz</yellow> for help.");
+            default -> sendError(sender, lang.getString("commands.unknown-subcommand"));
         }
         return true;
     }
@@ -74,7 +73,7 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
         KeyAllDefinition def = configManager.getKeyAll(defName);
 
         if (def == null) {
-            sendError(sender, "The definition <white>'" + defName + "'</white> does not exist in config.");
+            sendError(sender, lang.getString("commands.start.def-not-found").replace("%definition%", defName));
             return;
         }
 
@@ -82,11 +81,11 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
         try {
             seconds = Integer.parseInt(args[2]);
         } catch (NumberFormatException e) {
-            sendError(sender, "Invalid time format: <white>'" + args[2] + "'</white> is not a number.");
+            sendError(sender, lang.getString("commands.start.invalid-time").replace("%input%", args[2]));
             return;
         }
         if (seconds <= 0) {
-            sendError(sender, "Timer duration must be greater than 0 seconds.");
+            sendError(sender, lang.getString("commands.start.time-too-low"));
             return;
         }
 
@@ -96,7 +95,7 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
             Timer oldTimer = timers.get(defName);
             oldTimer.stop();
             timers.remove(defName);
-            sendInfo(sender, "<yellow>Overwriting</yellow> existing timer for <white>" + defName + "</white>.");
+            sendInfo(sender, lang.getString("commands.start.overwriting").replace("%definition%", defName));
         }
 
         Timer timer = new Timer(plugin, def, seconds, rewardExecutor);
@@ -114,8 +113,11 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
         timers.put(defName, timer);
         plugin.persistTimersNow();
 
-        sendSuccess(sender, "Started KeyAll <gold>" + defName + "</gold> for <green>" + seconds + "s</green>" +
-                (loop ? " <dark_gray>(Looping)</dark_gray>" : "") + ".");
+        String loopingTag = loop ? lang.getString("commands.start.looping-tag") : "";
+        sendSuccess(sender, lang.getString("commands.start.success")
+                .replace("%definition%", defName)
+                .replace("%seconds%", String.valueOf(seconds))
+                .replace("%looping%", loopingTag));
     }
 
     private void handleStop(CommandSender sender, String[] args) {
@@ -130,12 +132,10 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
         if (timer != null && timer.isRunning()) {
             timer.stop();
             plugin.persistTimersNow();
-            sendSuccess(sender, "Stopped timer for <gold>" + defName + "</gold>.");
-        } else if (timer != null) {
-            plugin.persistTimersNow();
-            sendError(sender, "There is no running timer for <white>" + defName + "</white>.");
+            sendSuccess(sender, lang.getString("commands.stop.success").replace("%definition%", defName));
         } else {
-            sendError(sender, "There is no running timer for <white>" + defName + "</white>.");
+            plugin.persistTimersNow();
+            sendError(sender, lang.getString("commands.stop.not-running").replace("%definition%", defName));
         }
     }
 
@@ -149,7 +149,7 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
         Timer timer = timers.get(defName);
 
         if (timer == null) {
-            sendError(sender, "No active timer found for <white>" + defName + "</white>. Start one first!");
+            sendError(sender, lang.getString("commands.loop.no-timer").replace("%definition%", defName));
             return;
         }
 
@@ -157,7 +157,11 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
         timer.setLooping(loop);
         if (plugin.getRedisSync() != null) plugin.getRedisSync().publishLoopSet(defName, loop);
         plugin.persistTimersNow();
-        sendSuccess(sender, "Looping for <gold>" + defName + "</gold> set to: " + (loop ? "<green>TRUE</green>" : "<red>FALSE</red>"));
+        
+        String state = loop ? lang.getString("commands.loop.state-true") : lang.getString("commands.loop.state-false");
+        sendSuccess(sender, lang.getString("commands.loop.success")
+                .replace("%definition%", defName)
+                .replace("%state%", state));
     }
 
     private void handleRemind(CommandSender sender, String[] args) {
@@ -170,7 +174,7 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
         Timer timer = timers.get(defName);
 
         if (timer == null) {
-            sendError(sender, "No active timer found for <white>" + defName + "</white>.");
+            sendError(sender, lang.getString("commands.remind.no-timer").replace("%definition%", defName));
             return;
         }
 
@@ -178,39 +182,40 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
         try {
             interval = Integer.parseInt(args[2]);
         } catch (NumberFormatException e) {
-            sendError(sender, "<white>'" + args[2] + "'</white> is not a valid number.");
+            sendError(sender, lang.getString("commands.remind.invalid-number").replace("%input%", args[2]));
             return;
         }
         if (interval < 0) {
-            sendError(sender, "Reminder interval cannot be negative.");
+            sendError(sender, lang.getString("commands.remind.negative-interval"));
             return;
         }
 
         timer.setReminderInterval(interval);
         if (plugin.getRedisSync() != null) plugin.getRedisSync().publishRemindSet(defName, interval);
         plugin.persistTimersNow();
-        sendSuccess(sender, "Reminder interval for <gold>" + defName + "</gold> updated to every <green>" + interval + "s</green>.");
+        sendSuccess(sender, lang.getString("commands.remind.success")
+                .replace("%definition%", defName)
+                .replace("%interval%", String.valueOf(interval)));
     }
 
     private void handleList(CommandSender sender) {
         if (timers.isEmpty()) {
-            sendInfo(sender, "There are currently <red>no active timers</red>.");
+            sendInfo(sender, lang.getString("commands.list.no-timers"));
             return;
         }
 
-        sender.sendMessage(mm.deserialize("<st><dark_gray>             </dark_gray></st> <gradient:#FFD700:#FFA500>Active Timers</gradient> <st><dark_gray>             </dark_gray></st>"));
+        sender.sendMessage(lang.getComponent("commands.list.header"));
         for (Map.Entry<String, Timer> entry : timers.entrySet()) {
             Timer t = entry.getValue();
-            String status = t.isLooping() ? "<green>Looping</green>" : "<yellow>Once</yellow>";
+            String status = t.isLooping() ? lang.getString("commands.list.status-looping") : lang.getString("commands.list.status-once");
 
-            sender.sendMessage(mm.deserialize(
-                    " <dark_gray>»</dark_gray> <gold>" + entry.getKey() + "</gold> <dark_gray>|</dark_gray> " +
-                            "<gray>Time:</gray> <white>" + t.getTimeRemaining() + "s</white> " +
-                            "<dark_gray>|</dark_gray> " + status + " " +
-                            "<dark_gray>|</dark_gray> <gray>Remind:</gray> <white>" + t.getReminderInterval() + "s</white>"
-            ));
+            sender.sendMessage(lang.getComponent("commands.list.line",
+                    "definition", entry.getKey(),
+                    "time", String.valueOf(t.getTimeRemaining()),
+                    "status", status,
+                    "remind", String.valueOf(t.getReminderInterval())));
         }
-        sender.sendMessage(mm.deserialize("<dark_gray><st>                                     </st></dark_gray>"));
+        sender.sendMessage(lang.getComponent("commands.list.footer"));
     }
 
     private void handleReload(CommandSender sender) {
@@ -238,15 +243,18 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
         plugin.persistTimersNow();
 
         long time = System.currentTimeMillis() - start;
-        sendSuccess(sender, "Configuration reloaded in <white>" + time + "ms</white>. Updated <green>" + updated + "</green> active timers" +
-                (toRemove.isEmpty() ? "." : ", stopped <red>" + toRemove.size() + "</red> whose definitions were removed."));
+        String stoppedTag = toRemove.isEmpty() ? "." : lang.getString("commands.reload.stopped-count").replace("%count%", String.valueOf(toRemove.size()));
+        
+        sendSuccess(sender, lang.getString("commands.reload.success")
+                .replace("%time%", String.valueOf(time))
+                .replace("%updated%", String.valueOf(updated))
+                .replace("%stopped%", stoppedTag));
     }
 
     /* UTILS */
 
     private void sendHelp(CommandSender sender) {
-        Component header = mm.deserialize("<br><st><dark_gray>-------------</dark_gray></st> <gradient:#FFD700:#FFA500><bold>KeyAllZ Help</bold></gradient> <st><dark_gray>-------------</dark_gray></st><br>");
-        sender.sendMessage(header);
+        sender.sendMessage(lang.getComponent("commands.help.header"));
 
         sendHelpLine(sender, "/keyallz start <def> <sec>", "Start a KeyAll event");
         sendHelpLine(sender, "/keyallz stop <def>", "Stop an active event");
@@ -255,35 +263,35 @@ public class KeyAllZCommands implements CommandExecutor, TabCompleter {
         sendHelpLine(sender, "/keyallz list", "View active timers");
         sendHelpLine(sender, "/keyallz reload", "Reload plugin configuration");
 
-        sender.sendMessage(mm.deserialize("<br><gray><i>Hover over commands for details.</i></gray>"));
+        sender.sendMessage(lang.getComponent("commands.help.footer"));
     }
 
     private void sendHelpLine(CommandSender sender, String syntax, String desc) {
         String baseCmd = syntax.split(" ")[0] + " " + syntax.split(" ")[1];
 
-        Component message = mm.deserialize(" <gold>»</gold> <gray>" + syntax + "</gray>")
-                .hoverEvent(HoverEvent.showText(mm.deserialize("<yellow>Action:</yellow> <gray>" + desc + "</gray>\n<gray><i>Click to auto-complete</i></gray>")))
+        Component message = lang.getComponent("commands.help.line", "syntax", syntax)
+                .hoverEvent(HoverEvent.showText(lang.getComponent("commands.help.line-hover", "description", desc)))
                 .clickEvent(ClickEvent.suggestCommand(baseCmd));
 
         sender.sendMessage(message);
     }
 
     private void sendUsage(CommandSender sender, String usage, String description) {
-        sender.sendMessage(mm.deserialize(ERROR_PREFIX + "Invalid usage."));
-        sender.sendMessage(mm.deserialize(" <gold>»</gold> <gray>Try:</gray> <yellow>" + usage + "</yellow>"));
-        sender.sendMessage(mm.deserialize(" <gold>»</gold> <gray>Info:</gray> " + description));
+        sender.sendMessage(lang.getComponent("error-prefix").append(lang.getComponent("commands.invalid-usage")));
+        sender.sendMessage(lang.getComponent("commands.usage-try", "usage", usage));
+        sender.sendMessage(lang.getComponent("commands.usage-info", "description", description));
     }
 
     private void sendError(CommandSender sender, String message) {
-        sender.sendMessage(mm.deserialize(ERROR_PREFIX + message));
+        sender.sendMessage(lang.getComponent("error-prefix").append(mm.deserialize(message)));
     }
 
     private void sendSuccess(CommandSender sender, String message) {
-        sender.sendMessage(mm.deserialize(PREFIX + message));
+        sender.sendMessage(lang.getComponent("prefix").append(mm.deserialize(message)));
     }
 
     private void sendInfo(CommandSender sender, String message) {
-        sender.sendMessage(mm.deserialize(SUCCESS_PREFIX + message));
+        sender.sendMessage(lang.getComponent("success-prefix").append(mm.deserialize(message)));
     }
 
     /* TAB COMPLETION */

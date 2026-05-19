@@ -9,6 +9,7 @@ public class KeyAllDefinition {
 
     private final String name;
     private final String title;
+    private final String subtitle;
     private final String actionbar;
     private final String chatMessage;
     private final String sound;
@@ -18,13 +19,18 @@ public class KeyAllDefinition {
     private final List<String> consoleCommands;
     private final String permission;
     private final ReminderDefinition reminder;
+    private final int fadeIn;
+    private final int stay;
+    private final int fadeOut;
 
-    public KeyAllDefinition(String name, String title, String actionbar, String chatMessage,
+    public KeyAllDefinition(String name, String title, String subtitle, String actionbar, String chatMessage,
                             String sound, float soundVolume, float soundPitch,
                             List<String> playerCommands, List<String> consoleCommands,
-                            String permission, ReminderDefinition reminder) {
+                            String permission, ReminderDefinition reminder,
+                            int fadeIn, int stay, int fadeOut) {
         this.name = name;
         this.title = title;
+        this.subtitle = subtitle;
         this.actionbar = actionbar;
         this.chatMessage = chatMessage;
         this.sound = sound;
@@ -34,6 +40,9 @@ public class KeyAllDefinition {
         this.consoleCommands = consoleCommands;
         this.permission = permission;
         this.reminder = reminder;
+        this.fadeIn = fadeIn;
+        this.stay = stay;
+        this.fadeOut = fadeOut;
     }
 
     public static KeyAllDefinition fromConfig(String name, ConfigurationSection sec) {
@@ -45,6 +54,7 @@ public class KeyAllDefinition {
         return new KeyAllDefinition(
                 name,
                 sec.getString("title", ""),
+                sec.getString("subtitle", ""),
                 sec.getString("actionbar", ""),
                 sec.getString("chat", ""),
                 sec.getString("sound", ""),
@@ -53,12 +63,16 @@ public class KeyAllDefinition {
                 sec.getStringList("player-commands"),
                 sec.getStringList("console-commands"),
                 sec.getString("permission", ""),
-                reminder
+                reminder,
+                sec.getInt("fade-in", 10),
+                sec.getInt("stay", 40),
+                sec.getInt("fade-out", 10)
         );
     }
 
     public String getName() { return name; }
     public String getTitle() { return title; }
+    public String getSubtitle() { return subtitle; }
     public String getActionbar() { return actionbar; }
     public String getChatMessage() { return chatMessage; }
     public String getSound() { return sound; }
@@ -68,6 +82,9 @@ public class KeyAllDefinition {
     public List<String> getConsoleCommands() { return Collections.unmodifiableList(consoleCommands); }
     public String getPermission() { return permission; }
     public ReminderDefinition getReminder() { return reminder; }
+    public int getFadeIn() { return fadeIn; }
+    public int getStay() { return stay; }
+    public int getFadeOut() { return fadeOut; }
 
     /**
      * Inner class for reminder configuration
@@ -76,23 +93,32 @@ public class KeyAllDefinition {
         private final int interval;
         private final String message;
         private final String title;
+        private final String subtitle;
         private final String actionbar;
         private final String sound;
         private final float soundVolume;
         private final float soundPitch;
         private final boolean enabled;
+        private final int fadeIn;
+        private final int stay;
+        private final int fadeOut;
 
 
-        public ReminderDefinition(boolean enabled, int interval, String message, String title, String actionbar,
-                                  String sound, float soundVolume, float soundPitch) {
+        public ReminderDefinition(boolean enabled, int interval, String message, String title, String subtitle, String actionbar,
+                                  String sound, float soundVolume, float soundPitch,
+                                  int fadeIn, int stay, int fadeOut) {
             this.enabled = enabled;
             this.interval = interval;
             this.message = message;
             this.title = title;
+            this.subtitle = subtitle;
             this.actionbar = actionbar;
             this.sound = sound;
             this.soundVolume = soundVolume;
             this.soundPitch = soundPitch;
+            this.fadeIn = fadeIn;
+            this.stay = stay;
+            this.fadeOut = fadeOut;
         }
 
         public static ReminderDefinition fromConfig(ConfigurationSection sec) {
@@ -101,16 +127,21 @@ public class KeyAllDefinition {
                     sec.getInt("interval", 10),
                     sec.getString("message", ""),
                     sec.getString("title", ""),
+                    sec.getString("subtitle", ""),
                     sec.getString("actionbar", ""),
                     sec.getString("sound", ""),
                     (float) sec.getDouble("sound-volume", 1.0),
-                    (float) sec.getDouble("sound-pitch", 1.0)
+                    (float) sec.getDouble("sound-pitch", 1.0),
+                    sec.getInt("fade-in", 10),
+                    sec.getInt("stay", 40),
+                    sec.getInt("fade-out", 10)
             );
         }
 
         public int getInterval() { return interval; }
         public String getMessage() { return message; }
         public String getTitle() { return title; }
+        public String getSubtitle() { return subtitle; }
         public String getActionbar() { return actionbar; }
         public String getSound() { return sound; }
         public float getSoundVolume() { return soundVolume; }
@@ -118,5 +149,8 @@ public class KeyAllDefinition {
         public boolean isEnabled() {
             return enabled;
         }
+        public int getFadeIn() { return fadeIn; }
+        public int getStay() { return stay; }
+        public int getFadeOut() { return fadeOut; }
     }
 }

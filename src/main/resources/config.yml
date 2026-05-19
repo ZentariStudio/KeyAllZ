@@ -31,11 +31,17 @@ redis:
 keyalls:
   example:
     title: "<green>You received a KeyAll reward!"
+    subtitle: "<white>Enjoy your free items!"
     actionbar: "<yellow>Enjoy your free key!"
     chat: "<gray>[KeyAll] <aqua>Congrats %player%, you got a reward!"
     sound: "minecraft:entity.player.levelup"
     sound-volume: 1.0
     sound-pitch: 1.0
+
+    # Title timings in ticks (20 ticks = 1 second)
+    fade-in: 10
+    stay: 40
+    fade-out: 10
 
     # Commands run as the player receiving the KeyAll
     player-commands:
@@ -53,15 +59,22 @@ keyalls:
       enabled: true
       interval: 600
       message: "<yellow>Don't forget to claim your KeyAll! Time left: %remaining-time%"
+      title: "<red>KeyAll Starting Soon!"
+      subtitle: "<gray>%remaining-time% remaining"
+      fade-in: 5
+      stay: 20
+      fade-out: 5
 
 
   votekey:
     title: "<gold>Vote Party Reward!"
+    subtitle: ""
     actionbar: "<green>You earned a Vote Key!"
     chat: "<gray>[VoteParty] <aqua>%player% got a Vote Key!"
     sound: "minecraft:entity.experience_orb.pickup"
     sound-volume: 1.0
     sound-pitch: 1.2
+
 
     player-commands:
       - "me Just got a voting key YAY!"

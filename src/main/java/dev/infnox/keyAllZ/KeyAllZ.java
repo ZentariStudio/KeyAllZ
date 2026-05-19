@@ -3,6 +3,7 @@ package dev.infnox.keyAllZ;
 import dev.infnox.keyAllZ.commands.KeyAllZCommands;
 import dev.infnox.keyAllZ.config.ConfigManager;
 import dev.infnox.keyAllZ.config.KeyAllDefinition;
+import dev.infnox.keyAllZ.config.LangManager;
 import dev.infnox.keyAllZ.placeholder.KeyAllZPlaceholderExpansion;
 import dev.infnox.keyAllZ.redis.RedisManager;
 import dev.infnox.keyAllZ.redis.RedisTimerSync;
@@ -28,6 +29,7 @@ public class KeyAllZ extends JavaPlugin {
 
     private RewardExecutor rewardExecutor;
     private ConfigManager configManager;
+    private LangManager langManager;
     private RedisManager redisManager;
     private RedisTimerSync redisSync;
 
@@ -51,7 +53,8 @@ public class KeyAllZ extends JavaPlugin {
         }
 
         saveDefaultConfig();
-        configManager = new ConfigManager(this);
+        langManager = new LangManager(this);
+        configManager = new ConfigManager(this, langManager);
 
         for (KeyAllDefinition def : configManager.getAllKeyAlls()) {
             getLogger().info("Loaded KeyAll definition: " + def.getName());
@@ -91,6 +94,10 @@ public class KeyAllZ extends JavaPlugin {
 
     public ConfigManager getConfigManager() {
         return configManager;
+    }
+
+    public LangManager getLangManager() {
+        return langManager;
     }
 
     public Map<String, Timer> getTimers() {

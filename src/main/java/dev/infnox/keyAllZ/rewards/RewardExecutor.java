@@ -21,9 +21,9 @@ public class RewardExecutor {
     private final Set<String> executed = ConcurrentHashMap.newKeySet();
     private final MiniMessage mm = MiniMessage.miniMessage();
 
-    private static final Duration TITLE_FADE_IN  = Duration.ofMillis(500);
-    private static final Duration TITLE_STAY     = Duration.ofSeconds(2);
-    private static final Duration TITLE_FADE_OUT = Duration.ofMillis(500);
+//    private static final Duration TITLE_FADE_IN  = Duration.ofMillis(500);
+//    private static final Duration TITLE_STAY     = Duration.ofSeconds(2);
+//    private static final Duration TITLE_FADE_OUT = Duration.ofMillis(500);
 
     public RewardExecutor(JavaPlugin plugin) {
         this.plugin    = plugin;
@@ -48,11 +48,14 @@ public class RewardExecutor {
         if (reminder == null) return;
 
         foliaLib.getScheduler().runAtEntity(player, task -> {
-            String title = parse(reminder.getTitle(), player, def, secondsRemaining);
-            String ab    = parse(reminder.getActionbar(), player, def, secondsRemaining);
-            String chat  = parse(reminder.getMessage(), player, def, secondsRemaining);
+            String title    = parse(reminder.getTitle(),    player, def, secondsRemaining);
+            String subtitle = parse(reminder.getSubtitle(), player, def, secondsRemaining);
+            String ab       = parse(reminder.getActionbar(), player, def, secondsRemaining);
+            String chat     = parse(reminder.getMessage(),   player, def, secondsRemaining);
 
-            if (notEmpty(title)) sendComponent(player, title, ComponentType.TITLE);
+            if (notEmpty(title) || notEmpty(subtitle)) {
+                sendTitle(player, title, subtitle, reminder.getFadeIn(), reminder.getStay(), reminder.getFadeOut());
+            }
             if (notEmpty(ab))    sendComponent(player, ab,    ComponentType.ACTIONBAR);
             if (notEmpty(chat))  sendComponent(player, chat,  ComponentType.CHAT);
 
@@ -83,7 +86,12 @@ public class RewardExecutor {
 
     private void runPlayerRewards(KeyAllDefinition def, Player player) {
         // Visuals and Sounds
-        if (notEmpty(def.getTitle()))      sendComponent(player, parse(def.getTitle(),      player, def, 0), ComponentType.TITLE);
+        if (notEmpty(def.getTitle()) || notEmpty(def.getSubtitle())) {
+            sendTitle(player,
+                    parse(def.getTitle(),    player, def, 0),
+                    parse(def.getSubtitle(), player, def, 0),
+                    def.getFadeIn(), def.getStay(), def.getFadeOut());
+        }
         if (notEmpty(def.getActionbar()))  sendComponent(player, parse(def.getActionbar(),  player, def, 0), ComponentType.ACTIONBAR);
         if (notEmpty(def.getChatMessage()))sendComponent(player, parse(def.getChatMessage(),player, def, 0), ComponentType.CHAT);
 
@@ -138,16 +146,22 @@ public class RewardExecutor {
         }
     }
 
+    private void sendTitle(Player player, String titleText, String subtitleText, int fadeIn, int stay, int fadeOut) {
+        Component title = notEmpty(titleText) ? mm.deserialize(titleText) : Component.empty();
+        Component subtitle = notEmpty(subtitleText) ? mm.deserialize(subtitleText) : Component.empty();
+
+        Title.Times times = Title.Times.times(
+                Duration.ofMillis(fadeIn * 50L),
+                Duration.ofMillis(stay * 50L),
+                Duration.ofMillis(fadeOut * 50L)
+        );
+
+        player.showTitle(Title.title(title, subtitle, times));
+    }
+
     private void sendComponent(Player player, String text, ComponentType type) {
         if (!notEmpty(text)) return;
         switch (type) {
-            case TITLE -> {
-                player.showTitle(Title.title(
-                        mm.deserialize(text),
-                        Component.empty(),
-                        Title.Times.times(TITLE_FADE_IN, TITLE_STAY, TITLE_FADE_OUT)
-                ));
-            }
             case ACTIONBAR -> player.sendActionBar(mm.deserialize(text));
             case CHAT      -> player.sendMessage(mm.deserialize(text));
         }
@@ -170,12 +184,12 @@ public class RewardExecutor {
 
     private String parse(String text, Player player, KeyAllDefinition def, int secondsRemaining) {
         if (text == null || text.isEmpty()) return "";
-        
+
         if (!text.contains("%")) return text;
 
         text = text.replace("%player%", player.getName())
                    .replace("%keyall%", def.getName());
-        
+
         if (secondsRemaining > 0) {
             text = text.replace("%time%", String.valueOf(secondsRemaining))
                        .replace("%remaining-time%", formatRemainingTime(secondsRemaining));
