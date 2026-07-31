@@ -29,6 +29,8 @@ public class Timer {
     private int syncTickCount = 0;
     private TimerSyncListener syncListener;
 
+    private boolean rewardsTriggeredForCycle = false;
+
     private ScheduledTask task;
 
     public Timer(JavaPlugin plugin, KeyAllDefinition definition, int totalSeconds, int remainingSeconds, RewardExecutor rewardExecutor) {
@@ -86,6 +88,7 @@ public class Timer {
         if (!resume) {
             remainingSeconds = totalSeconds;
             cycleId = UUID.randomUUID().toString();
+            rewardsTriggeredForCycle = false;
             rewardExecutor.clearExecuted(definition.getName());
         }
 
@@ -102,6 +105,7 @@ public class Timer {
         cancelTask();
         remainingSeconds = remaining;
         this.cycleId = cycleId;
+        rewardsTriggeredForCycle = false;
         running = true;
         syncTickCount = 0;
         startSchedulerTask();
@@ -125,10 +129,41 @@ public class Timer {
         }
     }
 
+    public void completeFromRemote() {
+        triggerRewards();
+        rewardExecutor.clearExecuted(definition.getName());
+        stopReplicated();
+    }
+
+    public void cycleResetFromRemote(int total, String newCycleId) {
+        if (newCycleId != null && newCycleId.equals(cycleId)) {
+            remainingSeconds = total;
+            syncTickCount = 0;
+            if (!running) {
+                running = true;
+                startSchedulerTask();
+            }
+            return;
+        }
+
+        triggerRewards();
+        rewardExecutor.clearExecuted(definition.getName());
+        advanceToCycle(total, newCycleId);
+        if (!running) {
+            running = true;
+            startSchedulerTask();
+        }
+    }
+
     public void resetCycleReplicated(int total, String newCycleId) {
+        advanceToCycle(total, newCycleId);
+    }
+
+    private void advanceToCycle(int total, String newCycleId) {
         cycleId = newCycleId;
         remainingSeconds = total;
         syncTickCount = 0;
+        rewardsTriggeredForCycle = false;
     }
 
     private void cancelTask() {
@@ -186,12 +221,11 @@ public class Timer {
 
     private void handleEnd() {
         triggerRewards();
+        rewardExecutor.clearExecuted(definition.getName());
 
         if (looping) {
             String newCycleId = UUID.randomUUID().toString();
-            cycleId = newCycleId;
-            remainingSeconds = totalSeconds;
-            syncTickCount = 0;
+            advanceToCycle(totalSeconds, newCycleId);
             if (syncListener != null) {
                 syncListener.onTimerCycleReset(definition.getName(), totalSeconds, newCycleId);
             }
@@ -204,6 +238,11 @@ public class Timer {
     }
 
     public void triggerRewards() {
+        if (rewardsTriggeredForCycle) {
+            return;
+        }
+        rewardsTriggeredForCycle = true;
+
         final List<Player> online = new ArrayList<>(Bukkit.getOnlinePlayers());
         final String name = definition.getName();
         final String cid = cycleId;

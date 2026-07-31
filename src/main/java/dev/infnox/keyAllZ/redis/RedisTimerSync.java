@@ -291,16 +291,14 @@ public class RedisTimerSync implements TimerSyncListener {
     private void onRemoteEnd(SyncEvent ev) {
         Timer timer = plugin.getTimers().remove(ev.name.toLowerCase(Locale.ROOT));
         if (timer != null) {
-            timer.triggerRewards();
-            timer.stopReplicated();
+            timer.completeFromRemote();
         }
     }
 
     private void onRemoteCycleReset(SyncEvent ev) {
         Timer timer = plugin.getTimers().get(ev.name.toLowerCase(Locale.ROOT));
         if (timer != null) {
-            timer.triggerRewards();
-            timer.resetCycleReplicated(ev.totalSeconds, ev.cycleId);
+            timer.cycleResetFromRemote(ev.totalSeconds, ev.cycleId);
         }
     }
 

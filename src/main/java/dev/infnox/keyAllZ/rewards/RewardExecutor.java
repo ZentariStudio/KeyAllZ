@@ -66,9 +66,9 @@ public class RewardExecutor {
     }
 
     public void clearExecuted(String keyAllName) {
-        String prefix      = keyAllName + ":";
-        String prefixLower = prefix.toLowerCase(Locale.ROOT);
-        executed.removeIf(k -> k.startsWith(prefix) || k.toLowerCase(Locale.ROOT).startsWith(prefixLower));
+        if (keyAllName == null || keyAllName.isEmpty()) return;
+        String prefixLower = keyAllName.toLowerCase(Locale.ROOT) + ":";
+        executed.removeIf(k -> k.toLowerCase(Locale.ROOT).startsWith(prefixLower));
     }
 
     public void stopSound(Player player, String soundKey) {

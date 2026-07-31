@@ -4,6 +4,7 @@ main: dev.infnox.keyAllZ.KeyAllZ
 api-version: "1.21"
 authors: [luvtoxic]
 folia-supported: true
+softdepend: [PlaceholderAPI]
 commands:
   keyallz:
     description: Main command to manage KeyAll timers
@@ -12,6 +13,11 @@ commands:
     permission-message: "§cYou do not have permission to use KeyAllZ commands."
 
 permissions:
-  keyallz.use:
-    description: Allows the player to use KeyAllZ commands
+  keyallz.admin:
+    description: Allows managing KeyAllZ timers (start, stop, loop, remind, list, reload)
     default: op
+  keyallz.use:
+    description: Alias for keyallz.admin (backwards compatible)
+    default: op
+    children:
+      keyallz.admin: true
